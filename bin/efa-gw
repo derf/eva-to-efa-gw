@@ -1,0 +1,80 @@
+#!/usr/bin/env python3
+# vim:tabstop=4 softtabstop=4 shiftwidth=4 textwidth=160 smarttab expandtab colorcolumn=160
+
+import argparse
+
+import aiohttp
+from aiohttp import web
+
+import csv
+import json
+
+headers = {
+    "Access-Control-Allow-Origin": "*",
+    "Content-Type": "application/json; charset=utf-8",
+}
+
+occupancy_map = {"MANY_SEATS": 1, "FEW_SEATS": 2, "STANDING_ONLY": 3}
+
+eva_to_name = dict()
+
+
+def load_eva_to_name(filename):
+    ret = dict()
+    with open(filename, "r") as f:
+        f.readline()
+        cr = csv.reader(f, delimiter=";")
+        for city, place, _, _, _, _, _, name, _, eva, transports in cr:
+            if "TRAIN" in transports:
+                ret[int(eva)] = name
+    return ret
+
+
+def get_occupancy(occupancy):
+    try:
+        return occupancy_map[occupancy]
+    except KeyError:
+        return None
+
+
+async def handle_eva(request):
+    try:
+        eva = int(request.match_info.get("eva"))
+    except ValueError:
+        return web.HTTPBadRequest(text="EVA must be a number")
+
+    try:
+        station = eva_to_name[eva]
+    except KeyError:
+        return web.HTTPNotFound(text="Unknown EVA")
+
+    async with aiohttp.ClientSession() as session:
+        async with session.get(
+            f"https://vrrf.finalrewind.org/{station}.json?line=RE,RB,S&backend=efa.VRR2"
+        ) as response:
+            content = await response.text()
+            content = json.loads(content)
+            reply = dict()
+
+            for train in content["raw"]:
+                if train["train_no"]:
+                    reply[train["train_no"]] = {
+                        "occupancy": get_occupancy(train["occupancy"])
+                    }
+
+            return web.Response(body=json.dumps(reply), headers=headers)
+
+
+if __name__ == "__main__":
+
+    parser = argparse.ArgumentParser(description="eva to efa gateway")
+    parser.add_argument(
+        "--eva-csv", type=str, metavar="FILE", default="haltestellenMitEva.csv"
+    )
+    parser.add_argument("--port", type=int, metavar="PORT", default=8080)
+    args = parser.parse_args()
+
+    eva_to_name = load_eva_to_name(args.eva_csv)
+    app = web.Application()
+    app.add_routes([web.get("/{eva}.json", handle_eva)])
+    web.run_app(app, host="localhost", port=args.port)
