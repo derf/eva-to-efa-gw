@@ -72,9 +72,10 @@ if __name__ == "__main__":
         "--eva-csv", type=str, metavar="FILE", default="haltestellenMitEva.csv"
     )
     parser.add_argument("--port", type=int, metavar="PORT", default=8080)
+    parser.add_argument("--prefix", type=str, metavar="PATH", default="/")
     args = parser.parse_args()
 
     eva_to_name = load_eva_to_name(args.eva_csv)
     app = web.Application()
-    app.add_routes([web.get("/{eva}.json", handle_eva)])
+    app.add_routes([web.get(f"{args.prefix}{{eva}}.json", handle_eva)])
     web.run_app(app, host="localhost", port=args.port)
