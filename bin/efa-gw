@@ -42,13 +42,15 @@ async def handle_eva(request):
         ) as response:
             content = await response.text()
             content = json.loads(content)
-            reply = dict()
+            train_data = dict()
 
             for train in content["raw"]:
                 if train["train_no"]:
-                    reply[train["train_no"]] = {
+                    train_data[train["train_no"]] = {
                         "occupancy": get_occupancy(train["occupancy"])
                     }
+
+            reply = {"train": train_data}
 
             return web.Response(body=json.dumps(reply), headers=headers)
 
