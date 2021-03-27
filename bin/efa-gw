@@ -6,7 +6,6 @@ import argparse
 import aiohttp
 from aiohttp import web
 
-import csv
 import json
 
 headers = {
@@ -17,17 +16,6 @@ headers = {
 occupancy_map = {"MANY_SEATS": 1, "FEW_SEATS": 2, "STANDING_ONLY": 3}
 
 eva_to_name = dict()
-
-
-def load_eva_to_name(filename):
-    ret = dict()
-    with open(filename, "r") as f:
-        f.readline()
-        cr = csv.reader(f, delimiter=";")
-        for city, place, _, _, _, _, _, name, _, eva, transports in cr:
-            if "TRAIN" in transports:
-                ret[int(eva)] = name
-    return ret
 
 
 def get_occupancy(occupancy):
@@ -75,7 +63,10 @@ if __name__ == "__main__":
     parser.add_argument("--prefix", type=str, metavar="PATH", default="/")
     args = parser.parse_args()
 
-    eva_to_name = load_eva_to_name(args.eva_csv)
+    with open("share/vrr.json", "r") as f:
+        for eva, (city, stop, name) in json.load(f).items():
+            eva_to_name[int(eva)] = name
+
     app = web.Application()
     app.add_routes([web.get(f"{args.prefix}{{eva}}.json", handle_eva)])
     web.run_app(app, host="localhost", port=args.port)

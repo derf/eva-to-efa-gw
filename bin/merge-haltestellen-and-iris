@@ -1,0 +1,72 @@
+#!/usr/bin/env python3
+# vim:tabstop=4 softtabstop=4 shiftwidth=4 textwidth=160 smarttab expandtab colorcolumn=160
+
+import csv
+import json
+
+from geopy.distance import distance
+from progress.bar import Bar
+
+
+class ProgressBar(Bar):
+    suffix = "%(percent).0f%% [%(elapsed_td)s/%(eta_td)s]"
+
+
+vrr_stops = list()
+
+with open("haltestellenliste.csv", "r", encoding="iso-8859-1") as f:
+    f.readline()
+    cr = csv.reader(f, delimiter=";")
+    for city, place, _, _, _, lon, lat, stop, _, _ in cr:
+        lon = lon[:5] + lon[6:]
+        lat = lat[:6] + lat[7:]
+        try:
+            vrr_stops.append(
+                (stop.strip(), float(lat), float(lon), city.strip(), place.strip())
+            )
+        except ValueError:
+            # invalid entry
+            pass
+
+with open("/home/derf/var/code/Travel-Status-DE-IRIS/share/stations.json", "r") as f:
+    iris_stops = json.load(f)
+
+output = dict()
+
+for iris_stop in ProgressBar(max=len(iris_stops)).iter(iris_stops):
+    eva = iris_stop["eva"]
+    iris_name = iris_stop["name"]
+    iris_lat, iris_lon = iris_stop["latlong"]
+
+    for stop, lat, lon, city, place in vrr_stops:
+        if stop == iris_name:
+            output[eva] = city, place, stop
+            break
+
+    if eva in output:
+        continue
+
+    candidates = list()
+    for stop, lat, lon, city, place in vrr_stops:
+        if abs(lat - iris_lat) < 0.01 and abs(lon - iris_lon) < 0.01:
+            candidates.append(
+                (
+                    stop,
+                    lat,
+                    lon,
+                    city,
+                    place,
+                    distance((lat, lon), (iris_lat, iris_lon)).m,
+                )
+            )
+
+    if not candidates:
+        continue
+
+    candidates.sort(key=lambda x: x[5])
+
+    stop, _, _, city, place, _ = candidates[0]
+    output[eva] = city, place, stop
+
+with open("share/vrr.json", "w", encoding="utf-8") as f:
+    json.dump(output, f, ensure_ascii=False)
