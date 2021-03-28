@@ -25,6 +25,19 @@ def get_occupancy(occupancy):
         return None
 
 
+def build_response(content):
+    train_data = dict()
+    for train in content["raw"]:
+        if train["train_no"]:
+            train_data[train["train_no"]] = {
+                "occupancy": get_occupancy(train["occupancy"])
+            }
+
+    reply = {"train": train_data}
+
+    return web.Response(body=json.dumps(reply), headers=headers)
+
+
 async def handle_eva(request):
     try:
         eva = int(request.match_info.get("eva"))
@@ -32,7 +45,7 @@ async def handle_eva(request):
         return web.HTTPBadRequest(text="EVA must be a number")
 
     try:
-        station = eva_to_name[eva]
+        station, optid = eva_to_name[eva]
     except KeyError:
         return web.HTTPNotFound(text="Unknown EVA")
 
@@ -42,17 +55,22 @@ async def handle_eva(request):
         ) as response:
             content = await response.text()
             content = json.loads(content)
-            train_data = dict()
 
-            for train in content["raw"]:
-                if train["train_no"]:
-                    train_data[train["train_no"]] = {
-                        "occupancy": get_occupancy(train["occupancy"])
-                    }
+            print(content)
 
-            reply = {"train": train_data}
+            if not content["error"]:
+                return build_response(content)
 
-            return web.Response(body=json.dumps(reply), headers=headers)
+    async with aiohttp.ClientSession() as session:
+        async with session.get(
+            f"https://vrrf.finalrewind.org/{optid}.json?line=RE,RB,S&backend=efa.VRR2&proximity_search=1"
+        ) as response:
+            content = await response.text()
+            content = json.loads(content)
+
+            print(content)
+
+            return build_response(content)
 
 
 if __name__ == "__main__":
@@ -66,8 +84,8 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     with open("share/vrr.json", "r") as f:
-        for eva, (city, stop, name) in json.load(f).items():
-            eva_to_name[int(eva)] = name
+        for eva, (name, optid) in json.load(f).items():
+            eva_to_name[int(eva)] = name, optid
 
     app = web.Application()
     app.add_routes([web.get(f"{args.prefix}{{eva}}.json", handle_eva)])

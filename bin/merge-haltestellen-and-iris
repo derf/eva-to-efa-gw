@@ -17,13 +17,11 @@ vrr_stops = list()
 with open("haltestellenliste.csv", "r", encoding="iso-8859-1") as f:
     f.readline()
     cr = csv.reader(f, delimiter=";")
-    for city, place, _, _, _, lon, lat, stop, _, _ in cr:
+    for _, _, _, _, optid, lon, lat, stop, _, _ in cr:
         lon = lon[:5] + lon[6:]
         lat = lat[:6] + lat[7:]
         try:
-            vrr_stops.append(
-                (stop.strip(), float(lat), float(lon), city.strip(), place.strip())
-            )
+            vrr_stops.append((stop.strip(), float(lat), float(lon), optid.strip()))
         except ValueError:
             # invalid entry
             pass
@@ -38,24 +36,20 @@ for iris_stop in ProgressBar(max=len(iris_stops)).iter(iris_stops):
     iris_name = iris_stop["name"]
     iris_lat, iris_lon = iris_stop["latlong"]
 
-    for stop, lat, lon, city, place in vrr_stops:
+    for stop, lat, lon, optid in vrr_stops:
         if stop == iris_name:
-            output[eva] = city, place, stop
+            output[eva] = stop, optid
             break
 
     if eva in output:
         continue
 
     candidates = list()
-    for stop, lat, lon, city, place in vrr_stops:
+    for stop, lat, lon, optid in vrr_stops:
         if abs(lat - iris_lat) < 0.01 and abs(lon - iris_lon) < 0.01:
             candidates.append(
                 (
-                    stop,
-                    lat,
-                    lon,
-                    city,
-                    place,
+                    (stop, lat, lon, optid),
                     distance((lat, lon), (iris_lat, iris_lon)).m,
                 )
             )
@@ -63,10 +57,10 @@ for iris_stop in ProgressBar(max=len(iris_stops)).iter(iris_stops):
     if not candidates:
         continue
 
-    candidates.sort(key=lambda x: x[5])
+    candidates.sort(key=lambda x: x[1])
 
-    stop, _, _, city, place, _ = candidates[0]
-    output[eva] = city, place, stop
+    stop, lat, lon, optid = candidates[0][0]
+    output[eva] = stop, optid
 
 with open("share/vrr.json", "w", encoding="utf-8") as f:
     json.dump(output, f, ensure_ascii=False)
