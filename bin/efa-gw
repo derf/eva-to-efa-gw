@@ -56,8 +56,6 @@ async def handle_eva(request):
             content = await response.text()
             content = json.loads(content)
 
-            print(content)
-
             if not content["error"]:
                 return build_response(content)
 
@@ -67,8 +65,6 @@ async def handle_eva(request):
         ) as response:
             content = await response.text()
             content = json.loads(content)
-
-            print(content)
 
             return build_response(content)
 
