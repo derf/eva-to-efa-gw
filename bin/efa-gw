@@ -5,6 +5,7 @@ import argparse
 
 import aiohttp
 from aiohttp import web
+from datetime import datetime
 
 import json
 
@@ -15,6 +16,7 @@ headers = {
 
 occupancy_map = {"MANY_SEATS": 1, "FEW_SEATS": 2, "STANDING_ONLY": 3}
 
+cache = dict()
 eva_to_name = dict()
 
 
@@ -25,7 +27,7 @@ def get_occupancy(occupancy):
         return None
 
 
-def build_response(content):
+def build_response(content, eva, now):
     train_data = dict()
     for train in content["raw"]:
         if train["train_no"]:
@@ -34,6 +36,8 @@ def build_response(content):
             }
 
     reply = {"train": train_data}
+
+    cache[eva] = (now, reply)
 
     return web.Response(body=json.dumps(reply), headers=headers)
 
@@ -49,6 +53,11 @@ async def handle_eva(request):
     except KeyError:
         return web.HTTPNotFound(text="Unknown EVA")
 
+    now = datetime.now().timestamp()
+
+    if eva in cache and now - cache[eva][0] < 300:
+        return web.Response(body=json.dumps(cache[eva][1]), headers=headers)
+
     async with aiohttp.ClientSession() as session:
         async with session.get(
             f"https://vrrf.finalrewind.org/{station}.json?line=RE,RB,S&backend=efa.VRR2"
@@ -57,7 +66,7 @@ async def handle_eva(request):
             content = json.loads(content)
 
             if not content["error"]:
-                return build_response(content)
+                return build_response(content, eva, now)
 
     async with aiohttp.ClientSession() as session:
         async with session.get(
@@ -66,7 +75,7 @@ async def handle_eva(request):
             content = await response.text()
             content = json.loads(content)
 
-            return build_response(content)
+            return build_response(content, eva, now)
 
 
 if __name__ == "__main__":
