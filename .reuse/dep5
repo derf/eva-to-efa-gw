@@ -1,0 +1,10 @@
+Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
+
+Files: README
+Copyright: 2021 Daniel Friesel
+License: CC0-1.0
+
+Files: share/vrr.json
+Copyright: 2021 DB Station&Service AG
+2021 Verkehrsverbund Rhein-Ruhr AöR
+License: CC-BY-4.0
