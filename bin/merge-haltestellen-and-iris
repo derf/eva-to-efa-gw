@@ -19,12 +19,14 @@ class ProgressBar(Bar):
 
 vrr_stops = list()
 
-with open("haltestellenliste.csv", "r", encoding="iso-8859-1") as f:
+with open("stop.csv", "r", encoding="iso-8859-1") as f:
     f.readline()
     cr = csv.reader(f, delimiter=";")
-    for _, _, _, _, optid, lon, lat, stop, _, _ in cr:
-        lon = lon[:5] + lon[6:]
-        lat = lat[:6] + lat[7:]
+    for field in cr:
+        stop = field[3]
+        lon = field[6]
+        lat = field[7]
+        optid = field[16]
         try:
             vrr_stops.append((stop.strip(), float(lat), float(lon), optid.strip()))
         except ValueError:
