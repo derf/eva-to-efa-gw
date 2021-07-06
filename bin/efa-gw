@@ -24,6 +24,80 @@ occupancy_cache = dict()
 eva_to_name = dict()
 
 
+class EFA:
+    def __init__(self, url):
+        self.dm_url = url + "/XML_DM_REQUEST"
+        self.dm_post_data = {
+            "command": "",
+            "deleteAssignedStops_dm": "1",
+            "help": "Hilfe",
+            "itdLPxx_id_dm": ":dm",
+            "itdLPxx_mapState_dm": "",
+            "itdLPxx_mdvMap2_dm": "",
+            "itdLPxx_mdvMap_dm": "3406199:401077:NAV3",
+            "itdLPxx_transpCompany": "vrr",
+            "itdLPxx_view": "",
+            "language": "de",
+            "mode": "direct",
+            "nameInfo_dm": "invalid",
+            "nameState_dm": "empty",
+            "outputFormat": "JSON",
+            "ptOptionsActive": "1",
+            "requestID": "0",
+            "reset": "neue Anfrage",
+            "sessionID": "0",
+            "submitButton": "anfordern",
+            "typeInfo_dm": "invalid",
+            "type_dm": "stop",
+            "useProxFootSearch": "0",
+            "useRealtime": "1",
+        }
+
+    async def get_departures(self, place, name, ts):
+        self.dm_post_data.update(
+            {
+                "itdDateDay": ts.day,
+                "itdDateMonth": ts.month,
+                "itdDateYear": ts.year,
+                "itdTimeHour": ts.hour,
+                "itdTimeMinute": ts.minute,
+                "name_dm": name,
+            }
+        )
+        if place is None:
+            self.dm_post_data.pop("placeInfo_dm", None)
+            self.dm_post_data.pop("placeState_dm", None)
+            self.dm_post_data.pop("place_dm", None)
+        else:
+            self.dm_post_data.update(
+                {"placeInfo_dm": "invalid", "placeState_dm": "empty", "place_dm": place}
+            )
+        departures = list()
+        async with aiohttp.ClientSession() as session:
+            async with session.post(self.dm_url, data=self.dm_post_data) as response:
+                # EFA may return JSON with a text/html Content-Type, which response.json() does not like.
+                departures = json.loads(await response.text())
+
+        return departures
+
+
+async def get_departures(request):
+    efa_url = request.query.get("url", None)
+    place = request.query.get("place", None)
+    name = request.query.get("name", None)
+
+    if not efa_url:
+        return web.HTTPBadRequest(text="missing url=... parameter")
+    if not name:
+        return web.HTTPBadRequest(text="missing name=... parameter")
+
+    now = datetime.now()
+
+    reply = await EFA(efa_url).get_departures(place, name, now)
+
+    return web.Response(body=json.dumps(reply), headers=headers)
+
+
 def get_occupancy(occupancy):
     try:
         return occupancy_map[occupancy]
@@ -92,6 +166,7 @@ if __name__ == "__main__":
             eva_to_name[int(eva)] = name, optid
 
     app = web.Application()
+    app.add_routes([web.get(f"{args.prefix}departures", get_departures)])
     app.add_routes(
         [web.get(f"{args.prefix}occupancy-by-eva/{{eva}}.json", get_occupancy_by_eva)]
     )
