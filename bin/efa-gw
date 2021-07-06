@@ -85,9 +85,6 @@ async def handle_eva(request):
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description="eva to efa gateway")
-    parser.add_argument(
-        "--eva-csv", type=str, metavar="FILE", default="haltestellenMitEva.csv"
-    )
     parser.add_argument("--port", type=int, metavar="PORT", default=8080)
     parser.add_argument("--prefix", type=str, metavar="PATH", default="/")
     args = parser.parse_args()
