@@ -25,7 +25,7 @@ eva_to_name = dict()
 
 
 class EFA:
-    def __init__(self, url):
+    def __init__(self, url, proximity_search=False):
         self.dm_url = url + "/XML_DM_REQUEST"
         self.dm_post_data = {
             "command": "",
@@ -52,6 +52,9 @@ class EFA:
             "useProxFootSearch": "0",
             "useRealtime": "1",
         }
+
+        if proximity_search:
+            self.dm_post_data["useProxFootSearch"] = "1"
 
     async def get_departures(self, place, name, ts):
         self.dm_post_data.update(
@@ -105,13 +108,16 @@ def get_occupancy(occupancy):
         return None
 
 
-def build_occupancy_response(content, eva, now):
+def build_occupancy_response(departure_list, eva, now):
     train_data = dict()
-    for train in content["raw"]:
-        if train["train_no"]:
-            train_data[train["train_no"]] = {
-                "occupancy": get_occupancy(train["occupancy"])
-            }
+
+    for departure in departure_list:
+        try:
+            occupancy = departure["occupancy"]
+            train_no = departure["servingLine"]["trainNum"]
+            train_data[train_no] = {"occupancy": get_occupancy(occupancy)}
+        except KeyError:
+            pass
 
     reply = {"train": train_data}
 
@@ -131,27 +137,23 @@ async def get_occupancy_by_eva(request):
     except KeyError:
         return web.HTTPNotFound(text="Unknown EVA")
 
-    now = datetime.now().timestamp()
+    now = datetime.now()
 
-    if eva in occupancy_cache and now - occupancy_cache[eva][0] < 300:
+    if eva in occupancy_cache and now.timestamp() - occupancy_cache[eva][0] < 300:
         return web.Response(body=json.dumps(occupancy_cache[eva][1]), headers=headers)
 
-    async with aiohttp.ClientSession() as session:
-        async with session.get(
-            f"https://vrrf.finalrewind.org/{station}.json?line=RE,RB,S&backend=efa.VRR2"
-        ) as response:
-            content = await response.json()
+    reply = await EFA("https://app.vrr.de/standard").get_departures(None, station, now)
 
-            if not content["error"]:
-                return build_occupancy_response(content, eva, now)
+    if reply.get("departureList", None):
+        return build_occupancy_response(reply["departureList"], eva, now.timestamp())
 
-    async with aiohttp.ClientSession() as session:
-        async with session.get(
-            f"https://vrrf.finalrewind.org/{optid}.json?line=RE,RB,S&backend=efa.VRR2&proximity_search=1"
-        ) as response:
-            content = await response.json()
+    reply = await EFA(
+        "https://app.vrr.de/standard", proximity_search=True
+    ).get_departures(None, optid, now)
 
-            return build_occupancy_response(content, eva, now)
+    return build_occupancy_response(
+        reply.get("departureList", list()), eva, now.timestamp()
+    )
 
 
 if __name__ == "__main__":
@@ -168,9 +170,7 @@ if __name__ == "__main__":
     app = web.Application()
 
     # legacy route
-    app.add_routes(
-        [web.get(f"{args.prefix}{{eva}}.json", get_occupancy_by_eva)]
-    )
+    app.add_routes([web.get(f"{args.prefix}{{eva}}.json", get_occupancy_by_eva)])
 
     app.add_routes([web.get(f"{args.prefix}departures", get_departures)])
     app.add_routes(
