@@ -166,6 +166,12 @@ if __name__ == "__main__":
             eva_to_name[int(eva)] = name, optid
 
     app = web.Application()
+
+    # legacy route
+    app.add_routes(
+        [web.get(f"{args.prefix}{{eva}}.json", get_occupancy_by_eva)]
+    )
+
     app.add_routes([web.get(f"{args.prefix}departures", get_departures)])
     app.add_routes(
         [web.get(f"{args.prefix}occupancy-by-eva/{{eva}}.json", get_occupancy_by_eva)]
