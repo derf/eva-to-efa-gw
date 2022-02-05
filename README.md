@@ -1,4 +1,4 @@
-efa to efa gateway
+eva to efa gateway
 ---
 
 This repository contains a EVA ID to EFA departure data helper for
