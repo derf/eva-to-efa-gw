@@ -18,7 +18,7 @@ headers = {
     "Content-Type": "application/json; charset=utf-8",
 }
 
-occupancy_map = {"MANY_SEATS": 1, "FEW_SEATS": 2, "STANDING_ONLY": 3}
+occupancy_map = {"MANY_SEATS": 1, "FEW_SEATS": 2, "STANDING_ONLY": 3, "FULL": 4}
 
 occupancy_cache = dict()
 eva_to_name = dict()
